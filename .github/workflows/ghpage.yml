@@ -1,0 +1,44 @@
+name: ghpage
+on: [ push ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, 'skip doc')"
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
+
+      - name: install dependencies
+        run: |
+          python -m venv venv
+          . venv/bin/activate
+          pip install -U pip
+          pip install Sphinx sphinx-rtd-theme myst-parser
+          pip install torch==1.10.0+cpu torchvision==0.11.1+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
+          pip install -U .
+
+      - name: build
+        run: |
+          . venv/bin/activate
+          cd docs
+          make clean
+          make html
+
+      - name: push
+        if: github.ref == 'refs/heads/master'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add docs/build
+          git diff-index --quiet HEAD || git commit -am 'update doc [skip doc, skip tests]'
+          git push https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git HEAD:${GITHUB_REF}
+
+# git diff-index --quiet HEAD || git commit -am 'update doc' always exits with 0 except something wrong happens
+# git commit -am 'update doc' alone exits with 1 if there is no file to commit
